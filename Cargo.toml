@@ -1,0 +1,9 @@
+[package]
+name = "btc_minerr"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+hex = "0.4.3"
+sha2 = "0.10.9"
+thiserror = "2.0.17"
