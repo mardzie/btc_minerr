@@ -19,7 +19,7 @@ use sha2::Digest;
 /// fe9f0864 ........................... Nonce
 /// ```
 ///
-/// See [Block Chain Block Header](https://developer.bitcoin.org/reference/block_chain.html#block-headers).
+/// See [Block Header](https://learnmeabitcoin.com/technical/block/#header).
 #[derive(Debug, Clone)]
 pub struct BlockHeader {
     /// The version of this block header.#
@@ -44,7 +44,7 @@ pub struct BlockHeader {
     ///   However, the TXID corresponding to the output must be placed at some point before the TXID corresponding to the input.
     ///   This ensures that any program parsing block chain transactions linearly will encounter each output before it is used as an input.
     ///
-    /// [Merkle Trees](https://developer.bitcoin.org/reference/block_chain.html#merkle-trees)
+    /// [Merkle Root](https://learnmeabitcoin.com/technical/block/merkle-root/)
     ///
     /// > internal byte order; stored as bytes (not as hex)
     pub merkle_root_hash: [u8; 32],
@@ -60,10 +60,10 @@ pub struct BlockHeader {
     /// However, the header file nBits provides only 32 bits of space,
     /// so the target number uses a less precise format called "compact" which works like a base-256 version of scientific notation:
     ///
-    /// [Target nBits](https://developer.bitcoin.org/reference/block_chain.html#target-nbits)
+    /// [Target](https://learnmeabitcoin.com/technical/mining/target/)
     ///
     /// > little-endian
-    pub n_bits: u32,
+    pub target: u32,
     /// An arbitrary number miners change to modify the header hash in order to produce a hash less than or equal to the target threshold.
     /// If all 32-bit values are tested, the time can be updated or the coinbase transaction can be changed and the merkle root updated.
     ///
@@ -88,7 +88,7 @@ impl BlockHeader {
                     hex::encode(prev_block_header_hash)
                 ))
                 .as_secs() as u32,
-            n_bits,
+            target: n_bits,
             nonce: Default::default(),
         }
     }
@@ -102,7 +102,7 @@ impl BlockHeader {
         bytes[4..36].copy_from_slice(&self.prev_block_header_hash);
         bytes[36..68].copy_from_slice(&self.merkle_root_hash);
         bytes[68..72].copy_from_slice(&self.time.to_le_bytes());
-        bytes[72..76].copy_from_slice(&self.n_bits.to_le_bytes());
+        bytes[72..76].copy_from_slice(&self.target.to_le_bytes());
         bytes[76..80].copy_from_slice(&self.nonce.to_le_bytes());
 
         bytes
@@ -148,7 +148,7 @@ mod block_header_test {
             prev_block_header_hash: [0_u8; 32],
             merkle_root_hash: [0_u8; 32],
             time: 0,
-            n_bits: 0,
+            target: 0,
             nonce: 0,
         }
     }
