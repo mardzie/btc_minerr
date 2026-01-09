@@ -1,5 +1,5 @@
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("parse error occured: {0}")]
-    TransactionParseError(String),
+    #[error("the Merkle root hash is required but is not available. Please call")]
+    MerkleRootHashRequired,
 }

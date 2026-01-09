@@ -1,5 +1,9 @@
-use crate::{get_unix_timestamp, hash::Hash256};
-use sha2::Digest;
+mod block_header_bytes;
+
+pub use block_header_bytes::BlockHeaderBytes;
+
+use crate::{get_unix_timestamp, hash::Hash};
+
 
 /// # BlockHeader
 ///
@@ -29,8 +33,8 @@ pub struct BlockHeader {
     pub version: i32,
     /// A SHA256(SHA256()) hash in internal byte order of the previous block´s header.
     ///
-    /// > internal byte order; stored as bytes (not as hex)
-    pub prev_block_header_hash: [u8; 32],
+    /// > internal byte order; stored in reversed byte order.
+    pub prev_block_header_hash: Hash,
     /// A SHA256(SHA256()) hash in internal byte order.
     /// Its derived from the hashes of all transactions included in this block.
     ///
@@ -46,8 +50,8 @@ pub struct BlockHeader {
     ///
     /// [Merkle Root](https://learnmeabitcoin.com/technical/block/merkle-root/)
     ///
-    /// > internal byte order; stored as bytes (not as hex)
-    pub merkle_root_hash: [u8; 32],
+    /// > internal byte order; stored in reversed byte order.
+    pub merkle_root_hash: Hash,
     /// The block time is a Unix epock time when the miner started hashing the header (according to the miner).
     /// Must be strictly greater than the median time of the previous 11 blocks.
     /// Full nodes will not accept blocks with headers more than two hours in the future according to their clock.
@@ -71,46 +75,49 @@ pub struct BlockHeader {
     pub nonce: u32,
 }
 
+
 impl BlockHeader {
     pub fn new(
         version: i32,
-        prev_block_header_hash: [u8; 32],
-        merkle_root_hash: [u8; 32],
+        prev_block_header_hash: Hash,
+        merkle_root_hash: Hash,
         n_bits: u32,
     ) -> Self {
+        let time = get_unix_timestamp()
+                        .expect(&format!(
+                            "Failed to get a valid Unix timestamp for new BlockHeader with previous block header hash: {}",
+                            prev_block_header_hash.as_str()
+                        ))
+                        .as_secs() as u32;
+
         Self {
             version,
             prev_block_header_hash,
             merkle_root_hash,
-            time: get_unix_timestamp()
-                .expect(&format!(
-                    "Failed to get a valid Unix timestamp for new BlockHeader with previous block header hash: {}",
-                    hex::encode(prev_block_header_hash)
-                ))
-                .as_secs() as u32,
+            time,
             target: n_bits,
             nonce: Default::default(),
         }
     }
 
     /// Convert the [`BlockHeader`] into a valid byte array.
-
-    pub fn as_bytes(&self) -> [u8; 80] {
-        let mut bytes = [0_u8; 80];
+    pub fn as_bytes(&self) -> BlockHeaderBytes {
+        let mut bytes = [0u8; 80];
 
         bytes[..4].copy_from_slice(&self.version.to_le_bytes());
-        bytes[4..36].copy_from_slice(&self.prev_block_header_hash);
-        bytes[36..68].copy_from_slice(&self.merkle_root_hash);
+        bytes[4..36].copy_from_slice(
+            &self
+                .prev_block_header_hash
+                .clone()
+                .to_natural_byte()
+                .to_bytes(),
+        );
+        bytes[36..68].copy_from_slice(&self.merkle_root_hash.clone().to_natural_byte().to_bytes());
         bytes[68..72].copy_from_slice(&self.time.to_le_bytes());
         bytes[72..76].copy_from_slice(&self.target.to_le_bytes());
         bytes[76..80].copy_from_slice(&self.nonce.to_le_bytes());
 
-        bytes
-    }
-
-    /// Hash the [`BlockHeader`] for mining.
-    pub fn hash256(&self) -> [u8; 32] {
-        Hash256::digest(&self.as_bytes())
+        BlockHeaderBytes::new(bytes)
     }
 
     pub fn get_target(&self) -> [u8; 256] {
@@ -120,33 +127,26 @@ impl BlockHeader {
 
 #[cfg(test)]
 mod block_header_test {
+    use crate::hash::Hash;
+
     use super::BlockHeader;
 
     #[test]
-    fn into_bytes_test() {
+    fn into_bytes() {
         let bytes = get_zeroed_block_header().as_bytes();
 
-        assert_eq!([0_u8; 80], bytes);
-    }
-
-    #[test]
-    fn hash256() {
-        let header = get_zeroed_block_header().hash256();
-
-        assert_eq!(
-            [
-                75, 231, 87, 14, 143, 112, 235, 9, 54, 64, 200, 70, 130, 116, 186, 117, 151, 69,
-                167, 170, 43, 125, 37, 171, 30, 4, 33, 178, 89, 132, 80, 20
-            ],
-            header
-        );
+        assert_eq!([0u8; 80], bytes);
     }
 
     fn get_zeroed_block_header() -> BlockHeader {
         BlockHeader {
             version: 0,
-            prev_block_header_hash: [0_u8; 32],
-            merkle_root_hash: [0_u8; 32],
+            prev_block_header_hash: Hash::from_natural_byte_str(
+                "0000000000000000000000000000000000000000000000000000000000000000",
+            ),
+            merkle_root_hash: Hash::from_natural_byte_str(
+                "0000000000000000000000000000000000000000000000000000000000000000",
+            ),
             time: 0,
             target: 0,
             nonce: 0,
