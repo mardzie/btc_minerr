@@ -82,6 +82,21 @@ impl Hash {
         out
     }
 
+    /// The checksum of this [`Hash`].
+    /// 
+    /// The checksum are the first 4 chars from a hash.
+    /// This new hash should not be converted into another byte order.
+    pub fn checksum(&self) -> Hash {
+        match self {
+            Self::NaturalByte { hash } => Self::NaturalByte {
+                hash: hash[..4].to_string(),
+            },
+            Self::ReverseByte { hash } => Self::ReverseByte {
+                hash: hash[..4].to_string(),
+            },
+        }
+    }
+
     pub fn inner(&self) -> &str {
         match self {
             Self::NaturalByte { hash } => hash,
