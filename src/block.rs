@@ -6,7 +6,7 @@ mod transaction;
 pub use block_header::BlockHeader;
 pub use transaction::{RawTransaction, Transaction};
 
-use crate::hash::Hash;
+use crate::hash::{Hash, Hash256};
 
 #[derive(Debug)]
 pub struct Block {
@@ -50,6 +50,13 @@ impl Block {
         hex::encode_to_slice(hash, &mut merkle_root_hash);
 
         Hash::NaturalByte { hash }
+    }
+    
+    fn compute_merkle_branch(txid1: Hash, txid2: Hash) -> Hash {
+        let mut bytes = [0u8; 64]; 
+        bytes[..32].copy_from_slice(&txid1.to_natural_byte().to_bytes());
+        bytes[32..].copy_from_slice(&txid2.to_natural_byte().to_bytes());
+        Hash256::digest(&bytes)
     }
     
     pub fn block_header_hash256(&self) -> Hash {
