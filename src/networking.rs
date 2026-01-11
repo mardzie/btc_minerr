@@ -7,10 +7,15 @@ use std::{
 };
 
 #[allow(unused_imports)]
-pub use crate::networking::message::{BtcMessage, BtcMessageBytes, ToBtcMessageBytes};
+pub use crate::networking::message::{BtcMessage, BtcMessageBytes};
 
 mod error;
 mod message;
+
+pub const PROTOCOL_VERSION: u32 = 70015;
+pub const MAGIC_BYTES_MAINNET: u32 = 0xF9BEB4D9;
+pub const MAGIC_BYTES_REGTEST: u32 = 0xFABFB5DA;
+pub const MAGIC_BYTES_TESTNET3: u32 = 0x0B110907;
 
 type ArcMutex<T> = Arc<Mutex<T>>;
 type MagicBytes = [u8; 4];
@@ -26,8 +31,25 @@ pub struct Network {
     write_worker: thread::JoinHandle<()>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum NetworkType {
+    Mainnet,
+    Testnet,
+    Regtest,
+}
+
+pub trait NetworkInformation {
+    fn port(&self) -> u16;
+
+    /// The same as [`magic_number`] only as bytes in little-endian.
+    fn magic_bytes(&self) -> [u8; 4];
+
+    /// The same as [`magic_bytes`] only as a `u32` in little-endian.
+    fn magic_number(&self) -> u32;
+}
+
 impl Network {
-    pub fn connect<A>(addr: A) -> Result<Self, error::Error>
+    pub fn connect<A>(addr: A, net_type: NetworkType) -> Result<Self, error::Error>
     where
         A: ToSocketAddrs,
     {
@@ -55,7 +77,7 @@ impl Network {
     }
 
     fn read_worker(mut read_stream: net::TcpStream, recv_queue: ArcMutex<VecDeque<BtcMessage>>) {
-        Self::handshake(&read_stream);
+        Self::handshake(&read_stream).expect("Failed to finish handshake.");
 
         let mut magic_bytes: MagicBytes = [0u8; 4];
         let mut command_bytes: CommandBytes = [0u8; 12];
@@ -134,14 +156,12 @@ impl Network {
     /// This message will be sent as soon as every message before it was sent.
     ///
     /// This operates on a FIFO (first-in-first-out) queue.
-    pub fn send<M>(&mut self, message: M)
-    where
-        M: ToBtcMessageBytes,
+    pub fn send(&mut self, message: BtcMessage)
     {
         self.send_queue
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .push_back(message.to_btc_message_bytes());
+            .push_back(message.to_message_bytes());
     }
 
     /// Get the oldest received unread [`BtcMessage`].
@@ -162,5 +182,28 @@ impl Network {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .len()
+    }
+}
+
+impl NetworkInformation for NetworkType {
+    fn port(&self) -> u16 {
+        match self {
+            Self::Mainnet => 8333,
+            Self::Regtest => 18333,
+            Self::Testnet => 18444,
+        }
+    }
+
+    fn magic_bytes(&self) -> [u8; 4] {
+        // The magic number is in littel-endian. We do not want to convert it again.
+        self.magic_number().to_ne_bytes()
+    }
+
+    fn magic_number(&self) -> u32 {
+        match self {
+            Self::Mainnet => MAGIC_BYTES_MAINNET,
+            Self::Regtest => MAGIC_BYTES_REGTEST,
+            Self::Testnet => MAGIC_BYTES_TESTNET3,
+        }
     }
 }
