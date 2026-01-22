@@ -49,6 +49,7 @@ pub trait NetworkInformation {
 }
 
 impl Network {
+    /// Create a Network and connect to an address.
     pub fn connect<A>(addr: A, net_type: NetworkType) -> Result<Self, error::Error>
     where
         A: ToSocketAddrs,
@@ -76,6 +77,10 @@ impl Network {
         })
     }
 
+    fn handshake(mut read_stream: &net::TcpStream) -> Result<(), error::Error> {
+        todo!();
+    }
+
     fn read_worker(mut read_stream: net::TcpStream, recv_queue: ArcMutex<VecDeque<BtcMessage>>) {
         Self::handshake(&read_stream).expect("Failed to finish handshake.");
 
@@ -84,7 +89,7 @@ impl Network {
         let mut size_bytes: SizeBytes = [0u8; 4];
         let mut checksum_bytes: ChecksumBytes = [0u8; 4];
         let mut size: u32;
-        let mut payload: Vec<u8> = Vec::with_capacity(1024);
+        let mut payload: Vec<u8> = Vec::new();
 
         loop {
             read_stream
@@ -115,10 +120,6 @@ impl Network {
                 &payload,
             );
         }
-    }
-
-    fn handshake(mut read_stream: &net::TcpStream) -> Result<(), error::Error> {
-        todo!();
     }
 
     fn process_payload(
@@ -156,8 +157,7 @@ impl Network {
     /// This message will be sent as soon as every message before it was sent.
     ///
     /// This operates on a FIFO (first-in-first-out) queue.
-    pub fn send(&mut self, message: BtcMessage)
-    {
+    pub fn send(&mut self, message: BtcMessage) {
         self.send_queue
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -177,7 +177,7 @@ impl Network {
     /// Get the current received count of [`BtcMessage`].
     ///
     /// This can always change and the count of messages may be outdated directly after this function returns.
-    pub fn recvd_len(&self) -> usize {
+    pub fn recvd_queue_len(&self) -> usize {
         self.recv_queue
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
