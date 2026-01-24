@@ -4,4 +4,6 @@ use thiserror::Error;
 pub enum Error {
     #[error("IO Error: {0}")]
     IO(#[from] std::io::Error),
+    #[error("Checksum mismatch")]
+    ChecksumMismatch,
 }

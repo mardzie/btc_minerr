@@ -7,15 +7,20 @@ use std::{
 };
 
 #[allow(unused_imports)]
-pub use crate::networking::message::{BtcMessage, BtcMessageBytes};
+pub use crate::networking::message::MessageBytes;
+use crate::networking::{header::Header, message::Message, payload::Payload, traits::NetworkInformation};
 
+mod command;
 mod error;
+mod header;
 mod message;
+mod payload;
+mod traits;
 
 pub const PROTOCOL_VERSION: u32 = 70015;
-pub const MAGIC_BYTES_MAINNET: u32 = 0xF9BEB4D9;
-pub const MAGIC_BYTES_REGTEST: u32 = 0xFABFB5DA;
-pub const MAGIC_BYTES_TESTNET3: u32 = 0x0B110907;
+pub const MAGIC_NUMBER_MAINNET: u32 = 0xF9BEB4D9;
+pub const MAGIC_NUMBER_REGTEST: u32 = 0xFABFB5DA;
+pub const MAGIC_NUMBER_TESTNET3: u32 = 0x0B110907;
 
 type ArcMutex<T> = Arc<Mutex<T>>;
 type MagicBytes = [u8; 4];
@@ -24,33 +29,23 @@ type SizeBytes = [u8; 4];
 type ChecksumBytes = [u8; 4];
 
 pub struct Network {
-    recv_queue: ArcMutex<VecDeque<BtcMessage>>,
-    send_queue: ArcMutex<VecDeque<BtcMessageBytes>>,
+    recv_queue: ArcMutex<VecDeque<Message>>,
+    send_queue: ArcMutex<VecDeque<Vec<u8>>>,
 
     read_worker: thread::JoinHandle<()>,
     write_worker: thread::JoinHandle<()>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NetworkType {
     Mainnet,
     Testnet,
     Regtest,
 }
 
-pub trait NetworkInformation {
-    fn port(&self) -> u16;
-
-    /// The same as [`magic_number`] only as bytes in little-endian.
-    fn magic_bytes(&self) -> [u8; 4];
-
-    /// The same as [`magic_bytes`] only as a `u32` in little-endian.
-    fn magic_number(&self) -> u32;
-}
-
 impl Network {
     /// Create a Network and connect to an address.
-    pub fn connect<A>(addr: A, net_type: NetworkType) -> Result<Self, error::Error>
+    pub fn connect<A>(addr: A, net_type: impl NetworkInformation) -> Result<Self, error::Error>
     where
         A: ToSocketAddrs,
     {
@@ -81,7 +76,7 @@ impl Network {
         todo!();
     }
 
-    fn read_worker(mut read_stream: net::TcpStream, recv_queue: ArcMutex<VecDeque<BtcMessage>>) {
+    fn read_worker(mut read_stream: net::TcpStream, recv_queue: ArcMutex<VecDeque<Message>>) {
         Self::handshake(&read_stream).expect("Failed to finish handshake.");
 
         let mut magic_bytes: MagicBytes = [0u8; 4];
@@ -110,24 +105,20 @@ impl Network {
             read_stream
                 .read_exact(&mut payload)
                 .expect("Failed to read payload.");
+            
+            let header = Header::from_bytes(&magic_bytes, &command_bytes, size, checksum_bytes);
 
             Self::process_payload(
                 &recv_queue,
-                &magic_bytes,
-                &command_bytes,
-                size,
-                &checksum_bytes,
+                header,
                 &payload,
             );
         }
     }
 
     fn process_payload(
-        recv_queue: &ArcMutex<VecDeque<BtcMessage>>,
-        magic_bytes: &MagicBytes,
-        command_bytes: &CommandBytes,
-        size: u32,
-        checksum_bytes: &ChecksumBytes,
+        recv_queue: &ArcMutex<VecDeque<Message>>,
+        header: Header,
         payload: &[u8],
     ) {
         todo!("Process payload")
@@ -135,7 +126,7 @@ impl Network {
 
     fn write_worker(
         mut write_stream: net::TcpStream,
-        send_queue: ArcMutex<VecDeque<BtcMessageBytes>>,
+        send_queue: ArcMutex<VecDeque<Vec<u8>>>,
     ) {
         loop {
             if let Some(msg) = send_queue
@@ -143,7 +134,7 @@ impl Network {
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .pop_front()
             {
-                match write_stream.write_all(msg.bytes()) {
+                match write_stream.write_all(&msg) {
                     Ok(_) => {}
                     Err(e) => {
                         log::error!("Failed to write message: {}", e);
@@ -157,17 +148,17 @@ impl Network {
     /// This message will be sent as soon as every message before it was sent.
     ///
     /// This operates on a FIFO (first-in-first-out) queue.
-    pub fn send(&mut self, message: BtcMessage) {
+    pub fn send(&mut self, message: Message) {
         self.send_queue
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .push_back(message.to_message_bytes());
+            .push_back(message.to_bytes());
     }
 
     /// Get the oldest received unread [`BtcMessage`].
     ///
     /// This operates on a FIFO (first-in-first-out) queue.
-    pub fn recv(&self) -> Option<BtcMessage> {
+    pub fn recv(&self) -> Option<Message> {
         self.recv_queue
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -182,6 +173,21 @@ impl Network {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .len()
+    }
+}
+
+impl NetworkType {
+    pub fn from_magic_bytes(magic_bytes: &[u8; 4]) -> Self {
+        Self::from_magic_number(u32::from_ne_bytes(*magic_bytes))
+    }
+
+    pub fn from_magic_number(magic_number: u32) -> Self {
+        match magic_number {
+            MAGIC_NUMBER_MAINNET => Self::Mainnet,
+            MAGIC_NUMBER_REGTEST => Self::Regtest,
+            MAGIC_NUMBER_TESTNET3 => Self::Testnet,
+            _ => panic!("Unknown magic number!"),
+        }
     }
 }
 
@@ -201,9 +207,9 @@ impl NetworkInformation for NetworkType {
 
     fn magic_number(&self) -> u32 {
         match self {
-            Self::Mainnet => MAGIC_BYTES_MAINNET,
-            Self::Regtest => MAGIC_BYTES_REGTEST,
-            Self::Testnet => MAGIC_BYTES_TESTNET3,
+            Self::Mainnet => MAGIC_NUMBER_MAINNET,
+            Self::Regtest => MAGIC_NUMBER_REGTEST,
+            Self::Testnet => MAGIC_NUMBER_TESTNET3,
         }
     }
 }
