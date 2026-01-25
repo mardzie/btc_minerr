@@ -1,5 +1,5 @@
 use crate::{
-    hash::Hash,
+    hash::{Hash, Hash256},
     networking::{NetworkType, command::Command, traits::NetworkInformation},
 };
 
@@ -30,7 +30,7 @@ impl Header {
         Self {
             magic_bytes,
             command,
-            size: u32::from_be_bytes(size_bytes),
+            size: u32::from_le_bytes(size_bytes),
             checksum,
         }
     }
@@ -38,6 +38,11 @@ impl Header {
     /// Check the payload.
     pub fn check_payload(&self, payload_hash: &Hash) -> bool {
         payload_hash.check(&self.checksum)
+    }
+
+    pub fn check_payload_bytes(&self, payload: &[u8]) -> bool {
+        let hash = Hash256::digest(payload);
+        self.check_payload(&hash)
     }
 
     pub fn network_type(&self) -> NetworkType {
@@ -64,5 +69,31 @@ impl Header {
         bytes[20..24].copy_from_slice(&self.checksum);
 
         bytes
+    }
+}
+
+#[cfg(test)]
+mod header_test {
+    use crate::networking::{MAGIC_NUMBER_TESTNET3, NetworkType, command::Command, header::Header};
+
+    #[test]
+    fn from_to_bytes() {
+        let checksum = [0xFF, 0xFF, 0xFF, 0xFF];
+        let mut bytes = [0u8; 24];
+        bytes[..4].copy_from_slice(&MAGIC_NUMBER_TESTNET3.to_ne_bytes());
+        bytes[4..16].copy_from_slice(&Command::Verack.to_bytes());
+        bytes[16..20].copy_from_slice(&69u32.to_le_bytes());
+        bytes[20..24].copy_from_slice(&checksum);
+
+        let header = Header::from_bytes(&bytes);
+        
+        assert_eq!(header.network_type(), NetworkType::Testnet);
+        assert_eq!(header.command(), Command::Verack);
+        assert_eq!(header.size(), 69);
+        assert_eq!(header.checksum(), checksum);
+
+        let bytes_new = header.to_bytes();
+        
+        assert_eq!(bytes_new, bytes);
     }
 }
