@@ -8,7 +8,9 @@ use std::{
 
 #[allow(unused_imports)]
 pub use crate::networking::message::MessageBytes;
-use crate::networking::{header::Header, message::Message, payload::Payload, traits::NetworkInformation};
+use crate::networking::{
+    header::Header, message::Message, payload::Payload, traits::NetworkInformation,
+};
 
 mod command;
 mod error;
@@ -83,35 +85,25 @@ impl Network {
         let mut payload: Vec<u8> = Vec::new();
 
         loop {
-            read_stream.read_exact(&mut header_bytes).expect("Failed to read header.");
+            read_stream
+                .read_exact(&mut header_bytes)
+                .expect("Failed to read header.");
             let header = Header::from_bytes(&header_bytes);
-            
+
             payload.resize(header.size() as usize, 0);
             read_stream
                 .read_exact(&mut payload)
                 .expect("Failed to read payload.");
-            
 
-            Self::process_payload(
-                &recv_queue,
-                header,
-                &payload,
-            );
+            Self::process_payload(&recv_queue, header, &payload);
         }
     }
 
-    fn process_payload(
-        recv_queue: &ArcMutex<VecDeque<Message>>,
-        header: Header,
-        payload: &[u8],
-    ) {
+    fn process_payload(recv_queue: &ArcMutex<VecDeque<Message>>, header: Header, payload: &[u8]) {
         todo!("Process payload")
     }
 
-    fn write_worker(
-        mut write_stream: net::TcpStream,
-        send_queue: ArcMutex<VecDeque<Vec<u8>>>,
-    ) {
+    fn write_worker(mut write_stream: net::TcpStream, send_queue: ArcMutex<VecDeque<Vec<u8>>>) {
         loop {
             if let Some(msg) = send_queue
                 .lock()

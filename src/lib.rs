@@ -1,6 +1,6 @@
 mod block;
-mod minerr;
 mod hash;
+mod minerr;
 mod networking;
 
 pub fn get_unix_timestamp() -> Result<std::time::Duration, std::time::SystemTimeError> {

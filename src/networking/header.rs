@@ -18,15 +18,15 @@ impl Header {
         let mut command_bytes = [0u8; 12];
         let mut size_bytes = [0u8; 4];
         let mut checksum = [0u8; 4];
-        
+
         magic_bytes.copy_from_slice(&bytes[..4]);
         command_bytes.copy_from_slice(&bytes[4..16]);
         size_bytes.copy_from_slice(&bytes[16..20]);
         checksum.copy_from_slice(&bytes[20..]);
-        
+
         let magic_bytes = NetworkType::from_magic_bytes(&magic_bytes);
         let command = Command::from_bytes(&command_bytes);
-        
+
         Self {
             magic_bytes,
             command,

@@ -4,7 +4,6 @@ pub use block_header_bytes::BlockHeaderBytes;
 
 use crate::{get_unix_timestamp, hash::Hash};
 
-
 /// # BlockHeader
 ///
 /// Hashed are in internal byte order; the other values are all in little-endian order.
@@ -74,7 +73,6 @@ pub struct BlockHeader {
     /// > little-endian
     pub nonce: u32,
 }
-
 
 impl BlockHeader {
     pub fn new(

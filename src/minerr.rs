@@ -1,3 +1,1 @@
-pub struct Minerr {
-    
-}
+pub struct Minerr {}

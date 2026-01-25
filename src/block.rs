@@ -22,7 +22,12 @@ impl Block {
         transactions: Vec<RawTransaction>,
     ) -> Self {
         let mut block = Self {
-            header: BlockHeader::new(version, prev_block_header_hash, Self::compute_merkle_root_hash(&transactions), n_bits),
+            header: BlockHeader::new(
+                version,
+                prev_block_header_hash,
+                Self::compute_merkle_root_hash(&transactions),
+                n_bits,
+            ),
             transactions,
         };
         block.update_merkle_root_hash();
@@ -41,9 +46,8 @@ impl Block {
     pub fn compute_merkle_root_hash(raw_transactions: &Vec<RawTransaction>) -> Hash {
         let mut hash = String::new();
 
-        if raw_transactions.len() == 1 {
-        }
-        
+        if raw_transactions.len() == 1 {}
+
         todo!();
 
         let mut merkle_root_hash = [0u8; 16];
@@ -51,14 +55,14 @@ impl Block {
 
         Hash::NaturalByte { hash }
     }
-    
+
     fn compute_merkle_branch(txid1: Hash, txid2: Hash) -> Hash {
-        let mut bytes = [0u8; 64]; 
+        let mut bytes = [0u8; 64];
         bytes[..32].copy_from_slice(&txid1.to_natural_byte().to_bytes());
         bytes[32..].copy_from_slice(&txid2.to_natural_byte().to_bytes());
         Hash256::digest(&bytes)
     }
-    
+
     pub fn block_header_hash256(&self) -> Hash {
         todo!()
     }
