@@ -15,6 +15,10 @@ pub struct Message {
 pub struct MessageBytes(pub Vec<u8>);
 
 impl Message {
+    pub fn new(header: Header, payload: Payload) -> Self {
+        Self { header, payload }
+    }
+
     pub fn header(&self) -> &Header {
         &self.header
     }

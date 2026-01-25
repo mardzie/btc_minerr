@@ -30,6 +30,7 @@ pub enum Payload {
         last_block: u32,
     },
     Verack,
+    ChecksumMismatch(Vec<u8>),
 }
 
 impl Payload {
@@ -101,12 +102,17 @@ impl Payload {
                 let usr_agnt_end_idx = 80 + user_agent_bytes.len();
                 bytes[80..usr_agnt_end_idx].copy_from_slice(&user_agent_bytes);
                 bytes[usr_agnt_end_idx..usr_agnt_end_idx + 4]
-                    .copy_from_slice(&last_block.to_be_bytes());
+                    .copy_from_slice(&last_block.to_ne_bytes());
 
                 bytes
             }
             Self::Verack => {
                 todo!()
+            }
+            Self::ChecksumMismatch(payload) => {
+                log::warn!("To bytes on checksum mismatched payload!");
+
+                payload
             }
         }
     }

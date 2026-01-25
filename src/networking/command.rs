@@ -18,7 +18,7 @@ impl Command {
         match bytes {
             &VERSION_BYTES => Self::Version,
             &VERACK_BYTES => Self::Verack,
-            _ => panic!("Unknown command!"),
+            _ => panic!("Unknown command: {:?}", bytes),
         }
     }
 

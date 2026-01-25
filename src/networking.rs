@@ -25,10 +25,6 @@ pub const MAGIC_NUMBER_REGTEST: u32 = 0xFABFB5DA;
 pub const MAGIC_NUMBER_TESTNET3: u32 = 0x0B110907;
 
 type ArcMutex<T> = Arc<Mutex<T>>;
-type MagicBytes = [u8; 4];
-type CommandBytes = [u8; 12];
-type SizeBytes = [u8; 4];
-type ChecksumBytes = [u8; 4];
 
 pub struct Network {
     recv_queue: ArcMutex<VecDeque<Message>>,
@@ -99,8 +95,24 @@ impl Network {
         }
     }
 
-    fn process_payload(recv_queue: &ArcMutex<VecDeque<Message>>, header: Header, payload: &[u8]) {
-        todo!("Process payload")
+    fn process_payload(recv_queue: &ArcMutex<VecDeque<Message>>, header: Header, data: &[u8]) {
+        let payload = match Payload::from_bytes(&header, data) {
+            Ok(payload) => payload,
+            Err(e) => match e {
+                error::Error::ChecksumMismatch => {
+                    log::warn!("Payload mismatch!");
+                    Payload::ChecksumMismatch(data.to_vec())
+                }
+                _ => panic!("Unknown error on `Payload::from_bytes()` function!"),
+            },
+        };
+
+        let message = Message::new(header, payload);
+
+        recv_queue
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .push_back(message);
     }
 
     fn write_worker(mut write_stream: net::TcpStream, send_queue: ArcMutex<VecDeque<Vec<u8>>>) {
