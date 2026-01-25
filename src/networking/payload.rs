@@ -3,18 +3,17 @@ use std::net;
 use crate::{
     get_unix_timestamp,
     hash::Hash256,
-    networking::{
-        MessageBytes, PROTOCOL_VERSION, command::Command, error, header::Header, traits::FromToIpV6,
-    },
+    networking::{PROTOCOL_VERSION, command::Command, error, header::Header, traits::FromToIpV6},
 };
 
 #[derive(Debug, Clone, Hash)]
 pub enum Payload {
     Version {
-        // version: u32,
+        version: u32,
         /// A bit field.
         services: u64,
-        // time: u64,
+        /// Updates when converting into bytes with [`Self::to_bytes()`].
+        time: u64,
         /// A bit field.
         remote_services: u64,
         /// remote_addr is for address and port.
@@ -36,7 +35,11 @@ pub enum Payload {
 impl Payload {
     pub fn new_version(remote_addr: net::SocketAddr, local_addr: net::SocketAddr) -> Self {
         Self::Version {
+            version: PROTOCOL_VERSION,
             services: 0,
+            time: get_unix_timestamp()
+                .expect("Failed to get unix timestamp for new version payload.")
+                .as_secs(),
             remote_services: 0,
             remote_addr,
             local_services: 0,
@@ -50,7 +53,9 @@ impl Payload {
     pub fn to_bytes(self) -> Vec<u8> {
         match self {
             Self::Version {
+                version,
                 services,
+                time: _,
                 remote_services,
                 remote_addr,
                 local_services,
@@ -78,7 +83,7 @@ impl Payload {
 
                 let mut bytes = Vec::with_capacity(SIZE_OF_VERSION + user_agent_bytes.len());
 
-                bytes[..4].copy_from_slice(&PROTOCOL_VERSION.to_le_bytes());
+                bytes[..4].copy_from_slice(&version.to_ne_bytes());
                 bytes[4..12].copy_from_slice(&services.to_le_bytes());
                 bytes[12..20].copy_from_slice(
                     &get_unix_timestamp()
@@ -115,9 +120,7 @@ impl Payload {
 
         let payload = match header.command() {
             Command::Version => {}
-            Command::Verack => {
-                Self::Verack
-            }
+            Command::Verack => Self::Verack,
         };
 
         Ok(payload)
