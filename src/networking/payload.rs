@@ -25,7 +25,7 @@ pub enum Payload {
         /// The nonce.
         nonce: u64,
         /// user_agent is in [compact size](https://learnmeabitcoin.com/technical/general/compact-size/) in ascii format.
-        user_agent: String,
+        user_agent: Vec<u8>,
         ///The latest block of our blockchain.
         last_block: u32,
     },
@@ -45,7 +45,7 @@ impl Payload {
             local_services: 0,
             local_addr,
             nonce: 0,
-            user_agent: String::new(),
+            user_agent: Vec::new(),
             last_block: 0,
         }
     }
@@ -78,30 +78,30 @@ impl Payload {
                 let user_agent_bytes = if user_agent.is_empty() {
                     vec![0]
                 } else {
-                    user_agent.into_bytes()
+                    user_agent
                 };
 
                 let mut bytes = Vec::with_capacity(SIZE_OF_VERSION + user_agent_bytes.len());
 
                 bytes[..4].copy_from_slice(&version.to_ne_bytes());
-                bytes[4..12].copy_from_slice(&services.to_le_bytes());
+                bytes[4..12].copy_from_slice(&services.to_ne_bytes());
                 bytes[12..20].copy_from_slice(
                     &get_unix_timestamp()
                         .expect("Invalid unix timestamp while converting a BtcMessage to bytes.")
                         .as_secs()
                         .to_le_bytes(),
                 );
-                bytes[20..28].copy_from_slice(&remote_services.to_le_bytes());
+                bytes[20..28].copy_from_slice(&remote_services.to_ne_bytes());
                 bytes[28..44].copy_from_slice(&remote_addr.ip().to_v6().to_bits().to_be_bytes());
                 bytes[44..46].copy_from_slice(&remote_addr.port().to_be_bytes());
-                bytes[46..54].copy_from_slice(&local_services.to_le_bytes());
+                bytes[46..54].copy_from_slice(&local_services.to_ne_bytes());
                 bytes[54..70].copy_from_slice(&local_addr.ip().to_v6().to_bits().to_be_bytes());
                 bytes[70..72].copy_from_slice(&local_addr.port().to_be_bytes());
-                bytes[72..80].copy_from_slice(&nonce.to_le_bytes());
+                bytes[72..80].copy_from_slice(&nonce.to_ne_bytes());
                 let usr_agnt_end_idx = 80 + user_agent_bytes.len();
                 bytes[80..usr_agnt_end_idx].copy_from_slice(&user_agent_bytes);
                 bytes[usr_agnt_end_idx..usr_agnt_end_idx + 4]
-                    .copy_from_slice(&last_block.to_le_bytes());
+                    .copy_from_slice(&last_block.to_be_bytes());
 
                 bytes
             }
@@ -116,10 +116,54 @@ impl Payload {
             return Err(error::Error::ChecksumMismatch);
         };
 
-        todo!("Decode payload!");
-
         let payload = match header.command() {
-            Command::Version => {}
+            Command::Version => {
+                let mut version_bytes = [0u8; 4];
+                let mut services_bytes = [0u8; 8];
+                let mut time_bytes = [0u8; 8];
+                let mut remote_services_bytes = [0u8; 8];
+                let mut remote_ip_bytes = [0u8; 16];
+                let mut remote_port_bytes = [0u8; 2];
+                let mut local_services_bytes = [0u8; 8];
+                let mut local_ip_bytes = [0u8; 16];
+                let mut local_port_bytes = [0u8; 2];
+                let mut nonce_bytes = [0u8; 8];
+                let mut user_agent_bytes = Vec::with_capacity(1024);
+                let mut last_block_bytes = [0u8; 4];
+
+                version_bytes.copy_from_slice(&bytes[..4]);
+                services_bytes.copy_from_slice(&bytes[4..12]);
+                time_bytes.copy_from_slice(&bytes[12..20]);
+                remote_services_bytes.copy_from_slice(&bytes[20..28]);
+                remote_ip_bytes.copy_from_slice(&bytes[28..44]);
+                remote_port_bytes.copy_from_slice(&bytes[44..46]);
+                local_services_bytes.copy_from_slice(&bytes[46..54]);
+                local_ip_bytes.copy_from_slice(&bytes[54..70]);
+                local_port_bytes.copy_from_slice(&bytes[70..72]);
+                nonce_bytes.copy_from_slice(&bytes[72..80]);
+                let usr_agnt_end = bytes.len() - 4;
+                user_agent_bytes.copy_from_slice(&bytes[80..usr_agnt_end]);
+                last_block_bytes.copy_from_slice(&bytes[usr_agnt_end..usr_agnt_end + 4]);
+
+                Self::Version {
+                    version: u32::from_ne_bytes(version_bytes),
+                    services: u64::from_ne_bytes(services_bytes),
+                    time: u64::from_le_bytes(time_bytes),
+                    remote_services: u64::from_ne_bytes(remote_services_bytes),
+                    remote_addr: net::SocketAddr::new(
+                        net::IpAddr::from_be_bytes(remote_ip_bytes),
+                        u16::from_be_bytes(remote_port_bytes),
+                    ),
+                    local_services: u64::from_ne_bytes(local_services_bytes),
+                    local_addr: net::SocketAddr::new(
+                        net::IpAddr::from_be_bytes(local_ip_bytes),
+                        u16::from_be_bytes(local_port_bytes),
+                    ),
+                    nonce: u64::from_ne_bytes(nonce_bytes),
+                    user_agent: user_agent_bytes,
+                    last_block: u32::from_ne_bytes(last_block_bytes),
+                }
+            }
             Command::Verack => Self::Verack,
         };
 
