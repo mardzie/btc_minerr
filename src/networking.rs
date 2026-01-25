@@ -79,34 +79,18 @@ impl Network {
     fn read_worker(mut read_stream: net::TcpStream, recv_queue: ArcMutex<VecDeque<Message>>) {
         Self::handshake(&read_stream).expect("Failed to finish handshake.");
 
-        let mut magic_bytes: MagicBytes = [0u8; 4];
-        let mut command_bytes: CommandBytes = [0u8; 12];
-        let mut size_bytes: SizeBytes = [0u8; 4];
-        let mut checksum_bytes: ChecksumBytes = [0u8; 4];
-        let mut size: u32;
+        let mut header_bytes = [0u8; 24];
         let mut payload: Vec<u8> = Vec::new();
 
         loop {
-            read_stream
-                .read_exact(&mut magic_bytes)
-                .expect("Failed to read magic bytes.");
-            read_stream
-                .read_exact(&mut command_bytes)
-                .expect("Failed to read command.");
-            read_stream
-                .read_exact(&mut size_bytes)
-                .expect("Failed to read size.");
-            read_stream
-                .read_exact(&mut checksum_bytes)
-                .expect("Failed to read checksum.");
-
-            size = u32::from_le_bytes(size_bytes);
-            payload.resize(size as usize, 0);
+            read_stream.read_exact(&mut header_bytes).expect("Failed to read header.");
+            let header = Header::from_bytes(&header_bytes);
+            
+            payload.resize(header.size() as usize, 0);
             read_stream
                 .read_exact(&mut payload)
                 .expect("Failed to read payload.");
             
-            let header = Header::from_bytes(&magic_bytes, &command_bytes, size, checksum_bytes);
 
             Self::process_payload(
                 &recv_queue,

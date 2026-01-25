@@ -12,19 +12,25 @@ pub struct Header {
 }
 
 impl Header {
-    pub fn from_bytes(
-        magic_bytes: &[u8; 4],
-        command: &[u8; 12],
-        size: u32,
-        checksum: [u8; 4],
-    ) -> Self {
-        let magic_bytes = NetworkType::from_magic_bytes(magic_bytes);
-        let command = Command::from_bytes(command);
-
+    /// Takes exactly 24 bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        let mut magic_bytes = [0u8; 4];
+        let mut command_bytes = [0u8; 12];
+        let mut size_bytes = [0u8; 4];
+        let mut checksum = [0u8; 4];
+        
+        magic_bytes.copy_from_slice(&bytes[..4]);
+        command_bytes.copy_from_slice(&bytes[4..16]);
+        size_bytes.copy_from_slice(&bytes[16..20]);
+        checksum.copy_from_slice(&bytes[20..]);
+        
+        let magic_bytes = NetworkType::from_magic_bytes(&magic_bytes);
+        let command = Command::from_bytes(&command_bytes);
+        
         Self {
             magic_bytes,
             command,
-            size,
+            size: u32::from_be_bytes(size_bytes),
             checksum,
         }
     }

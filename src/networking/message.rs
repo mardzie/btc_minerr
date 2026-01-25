@@ -1,4 +1,4 @@
-use crate::networking::{header::Header, payload::Payload, traits::ToIpV6};
+use crate::networking::{header::Header, payload::Payload, traits::FromToIpV6};
 
 #[derive(Debug, Clone, Hash)]
 pub struct Message {
@@ -42,11 +42,15 @@ impl MessageBytes {
     }
 }
 
-impl ToIpV6 for std::net::IpAddr {
+impl FromToIpV6 for std::net::IpAddr {
     fn to_v6(self) -> std::net::Ipv6Addr {
         match self {
             Self::V4(addr) => addr.to_ipv6_mapped(),
             Self::V6(addr) => addr,
         }
+    }
+
+    fn from_be_bytes(bytes: [u8; 16]) -> Self {
+        std::net::IpAddr::V6(std::net::Ipv6Addr::from_bits(u128::from_be_bytes(bytes)))
     }
 }

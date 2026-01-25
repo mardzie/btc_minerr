@@ -1,5 +1,7 @@
-pub trait ToIpV6 {
+pub trait FromToIpV6 {
     fn to_v6(self) -> std::net::Ipv6Addr;
+    
+    fn from_be_bytes(bytes: [u8; 16]) -> Self;
 }
 
 pub trait NetworkInformation {

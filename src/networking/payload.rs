@@ -4,7 +4,7 @@ use crate::{
     get_unix_timestamp,
     hash::Hash256,
     networking::{
-        MessageBytes, PROTOCOL_VERSION, command::Command, error, header::Header, traits::ToIpV6,
+        MessageBytes, PROTOCOL_VERSION, command::Command, error, header::Header, traits::FromToIpV6,
     },
 };
 
@@ -106,7 +106,7 @@ impl Payload {
         }
     }
 
-    pub fn decode(header: &Header, bytes: &[u8]) -> Result<Self, error::Error> {
+    pub fn from_bytes(header: &Header, bytes: &[u8]) -> Result<Self, error::Error> {
         if header.check_payload(&Hash256::digest(bytes)) {
             return Err(error::Error::ChecksumMismatch);
         };
@@ -115,7 +115,9 @@ impl Payload {
 
         let payload = match header.command() {
             Command::Version => {}
-            Command::Verack => {}
+            Command::Verack => {
+                Self::Verack
+            }
         };
 
         Ok(payload)
