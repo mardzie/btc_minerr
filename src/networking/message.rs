@@ -6,14 +6,6 @@ pub struct Message {
     payload: Payload,
 }
 
-/// A Bitcoin message encoded into bytes.
-///
-/// Is used to as message to send to a Bitcoin node.
-///
-/// Implement [`ToBtcMessageBytes`] to use
-#[derive(Debug, Clone, Hash)]
-pub struct MessageBytes(pub Vec<u8>);
-
 impl Message {
     pub fn new(header: Header, payload: Payload) -> Self {
         Self { header, payload }
@@ -37,12 +29,6 @@ impl Message {
         payload.shrink_to_fit();
 
         payload
-    }
-}
-
-impl MessageBytes {
-    pub fn bytes(&self) -> &[u8] {
-        &self.0
     }
 }
 
